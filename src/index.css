@@ -1,0 +1,151 @@
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Poppins:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&family=Manrope:wght@400;500;600;700&display=swap');
+@import "tailwindcss";
+@import "leaflet/dist/leaflet.css";
+
+:root {
+  color-scheme: dark;
+  --font-poppins: 'Poppins', sans-serif;
+  --font-outfit: 'Outfit', sans-serif;
+  --pink-primary: #FF4F9A;
+  --pink-secondary: #FF6EB5;
+  --purple-primary: #C084FC;
+  --bg-dark: #09060F;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background-color: #09060F;
+  color: #f3f4f6;
+  font-family: var(--font-poppins);
+  overflow-x: hidden;
+  cursor: default;
+}
+
+/* Custom romantic scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #09060F;
+}
+
+::-webkit-scrollbar-thumb {
+  background: linear-gradient(to bottom, #FF4F9A, #A855F7);
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #FF6EB5;
+}
+
+/* Glassmorphism utility classes */
+.glass-love {
+  background: rgba(20, 12, 32, 0.65);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 110, 181, 0.18);
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+}
+
+.glass-love-heavy {
+  background: rgba(14, 8, 24, 0.88);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid rgba(255, 110, 181, 0.25);
+  box-shadow: 0 12px 40px 0 rgba(255, 79, 154, 0.15);
+}
+
+.glass-pill {
+  background: rgba(255, 255, 255, 0.07);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 130, 200, 0.25);
+}
+
+/* Glowing text and elements */
+.text-glow-pink {
+  text-shadow: 0 0 12px rgba(255, 79, 154, 0.6), 0 0 24px rgba(255, 110, 181, 0.4);
+}
+
+.text-glow-purple {
+  text-shadow: 0 0 12px rgba(192, 132, 252, 0.6), 0 0 24px rgba(168, 85, 247, 0.4);
+}
+
+.shadow-glow-pink {
+  box-shadow: 0 0 25px rgba(255, 79, 154, 0.35);
+}
+
+.shadow-glow-purple {
+  box-shadow: 0 0 25px rgba(168, 85, 247, 0.35);
+}
+
+/* Animations */
+@keyframes heartPulse {
+  0%, 100% {
+    transform: scale(1);
+    filter: drop-shadow(0 0 8px rgba(255, 79, 154, 0.6));
+  }
+  50% {
+    transform: scale(1.12);
+    filter: drop-shadow(0 0 18px rgba(255, 79, 154, 0.9));
+  }
+}
+
+.animate-heart-pulse {
+  animation: heartPulse 1.8s infinite ease-in-out;
+}
+
+@keyframes floatSlow {
+  0%, 100% {
+    transform: translateY(0px) rotate(0deg);
+  }
+  50% {
+    transform: translateY(-12px) rotate(3deg);
+  }
+}
+
+.animate-float-slow {
+  animation: floatSlow 5s infinite ease-in-out;
+}
+
+@keyframes glowBorder {
+  0%, 100% {
+    border-color: rgba(255, 79, 154, 0.3);
+  }
+  50% {
+    border-color: rgba(192, 132, 252, 0.6);
+  }
+}
+
+.animate-glow-border {
+  animation: glowBorder 3s infinite ease-in-out;
+}
+
+/* Map Dark Romantic Customization */
+.leaflet-container {
+  background: #09060F !important;
+  font-family: 'Poppins', sans-serif !important;
+}
+
+.dark-romantic-map .leaflet-tile {
+  filter: invert(100%) hue-rotate(270deg) brightness(70%) contrast(120%);
+}
+
+.map-heart-marker {
+  position: relative;
+}
+
+.map-heart-marker::after {
+  content: '❤️';
+  font-size: 16px;
+  position: absolute;
+  top: -12px;
+  left: -8px;
+  animation: heartPulse 1.5s infinite ease-in-out;
+}
