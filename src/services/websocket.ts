@@ -33,7 +33,7 @@ export class RoomSocketClient {
     this.onConnectCallback = callbacks.onConnect;
     this.onDisconnectCallback = callbacks.onDisconnect;
 
-    const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8080';
+    const apiUrl = (import.meta.env.VITE_API_URL || 'http://localhost:8080').replace(/\/+$/, '');
     const wsBase = apiUrl.startsWith('https')
       ? apiUrl.replace(/^https/, 'wss')
       : apiUrl.replace(/^http/, 'ws');
