@@ -5,7 +5,8 @@ import { MapContainer, TileLayer, Marker, Popup, Polyline } from 'react-leaflet'
 import L from 'leaflet';
 import {
   Users, Send, Image, Smile, MapPin, BarChart2, MessageSquare,
-  LogOut, Copy, Check, Download, FolderOpen, Film, ShieldCheck, Heart
+  LogOut, Copy, Check, Download, FolderOpen, Film, ShieldCheck, Heart,
+  Clapperboard, Monitor, RefreshCw, Play, CheckCircle2, Clock
 } from 'lucide-react';
 
 import { api, getRole, getUsername } from '../services/api';
@@ -42,6 +43,22 @@ const createHeartMarkerIcon = (avatarUrl: string, name: string) => {
   });
 };
 
+const formatDuration = (sec: number) => {
+  if (!sec || isNaN(sec)) return '0:00';
+  const m = Math.floor(sec / 60);
+  const s = Math.floor(sec % 60);
+  return `${m}:${s < 10 ? '0' : ''}${s}`;
+};
+
+const formatBytes = (bytes: number, decimals = 2) => {
+  if (!bytes) return '0 Bytes';
+  const k = 1024;
+  const dm = decimals < 0 ? 0 : decimals;
+  const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
+};
+
 type VerificationStatus = 'unselected' | 'verifying' | 'correct' | 'wrong';
 
 export const Room: React.FC = () => {
@@ -58,6 +75,7 @@ export const Room: React.FC = () => {
   const chatBottomRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const videoFileInputRef = useRef<HTMLInputElement>(null);
+  const hostLocalFileInputRef = useRef<HTMLInputElement>(null);
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const localVideoObjectUrlRef = useRef<string | null>(null);
 
@@ -88,12 +106,21 @@ export const Room: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'chat' | 'map' | 'analytics'>('chat');
   const [copied, setCopied] = useState(false);
   const [showVideoModal, setShowVideoModal] = useState(false);
+  const [videoModalView, setVideoModalView] = useState<'options' | 'library'>('options');
   const [videoLibrary, setVideoLibrary] = useState<any[]>([]);
   const [isEmojiOpen, setIsEmojiOpen] = useState(false);
+  const [isProcessingHostFile, setIsProcessingHostFile] = useState(false);
 
   // Local video state
   const [localVideoUrl, setLocalVideoUrl] = useState<string | null>(null);
   const [verificationStatus, setVerificationStatus] = useState<VerificationStatus>('unselected');
+  const [selectedFileName, setSelectedFileName] = useState<string>('');
+  const [selectedFileMeta, setSelectedFileMeta] = useState<{
+    name: string;
+    size: number;
+    duration: number;
+    resolution: string;
+  } | null>(null);
 
   // Viewer readiness state
   const [viewerReadyStatus, setViewerReadyStatus] = useState<{
@@ -103,9 +130,17 @@ export const Room: React.FC = () => {
     viewers: { username: string; bufferedSeconds: number; isReady: boolean }[];
   } | null>(null);
 
+  useEffect(() => {
+    if (showVideoModal) {
+      setVideoModalView('options');
+    }
+  }, [showVideoModal]);
+
   // Reset local video state when video changes
   useEffect(() => {
     setVerificationStatus('unselected');
+    setSelectedFileName('');
+    setSelectedFileMeta(null);
     setViewerReadyStatus(null);
 
     if (localVideoObjectUrlRef.current) {
@@ -274,6 +309,7 @@ export const Room: React.FC = () => {
     try {
       const vids = await api.getVideos();
       setVideoLibrary(vids);
+      setVideoModalView('options');
       setShowVideoModal(true);
     } catch (e) {
       console.error(e);
@@ -302,14 +338,114 @@ export const Room: React.FC = () => {
     document.body.removeChild(link);
   };
 
+  const handleHostLocalFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return; // User cancelled file picker, do nothing!
+
+    const ext = file.name.split('.').pop()?.toLowerCase();
+    const validExts = ['mp4', 'webm', 'mkv', 'avi', 'mov', 'm4v'];
+    if (!validExts.includes(ext || '')) {
+      alert("This file format isn't supported ❤️");
+      if (e.target) e.target.value = '';
+      return;
+    }
+
+    setIsProcessingHostFile(true);
+    try {
+      const videoEl = document.createElement('video');
+      videoEl.preload = 'metadata';
+      const fileUrl = URL.createObjectURL(file);
+      videoEl.src = fileUrl;
+
+      const meta: any = await new Promise((resolve) => {
+        videoEl.onloadedmetadata = () => {
+          resolve({
+            duration: videoEl.duration || 0,
+            resolution: `${videoEl.videoWidth}x${videoEl.videoHeight}`,
+          });
+        };
+        videoEl.onerror = () => {
+          resolve({ duration: 180, resolution: 'HD 1080p' });
+        };
+      });
+      URL.revokeObjectURL(fileUrl);
+
+      const payload = {
+        title: file.name,
+        fileName: file.name,
+        size: file.size,
+        duration: meta.duration || 180.0,
+        resolution: meta.resolution,
+        checksum: null
+      };
+
+      const localVideo = await api.createLocalVideoMetadata(payload);
+      await api.changeVideo(roomCode, localVideo.id);
+      socketClientRef.current?.sendPlaybackSync('CHANGE_VIDEO', 0, localVideo.id);
+
+      const objUrl = URL.createObjectURL(file);
+      if (localVideoObjectUrlRef.current) {
+        URL.revokeObjectURL(localVideoObjectUrlRef.current);
+      }
+      localVideoObjectUrlRef.current = objUrl;
+      setLocalVideoUrl(objUrl);
+
+      setVerificationStatus('correct');
+      setSelectedFileName(file.name);
+      setSelectedFileMeta({
+        name: file.name,
+        size: file.size,
+        duration: meta.duration,
+        resolution: meta.resolution
+      });
+
+      socketClientRef.current?.sendViewerReady(10.0);
+      setShowVideoModal(false);
+      setVideoModalView('options');
+      loadRoomInfo();
+    } catch (err: any) {
+      console.error(err);
+      alert("Failed to parse local video metadata. Please select a valid movie file.");
+    } finally {
+      setIsProcessingHostFile(false);
+      if (e.target) e.target.value = '';
+    }
+  };
+
   const handleLocalFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file) return;
+    if (!file) return; // User cancelled file picker, do nothing!
+
+    const ext = file.name.split('.').pop()?.toLowerCase();
+    const validExts = ['mp4', 'webm', 'mkv', 'avi', 'mov', 'm4v'];
+    if (!validExts.includes(ext || '')) {
+      alert("This file format isn't supported ❤️");
+      if (e.target) e.target.value = '';
+      return;
+    }
 
     const vid = room?.currentVideo;
     if (!vid) return;
 
     setVerificationStatus('verifying');
+
+    const videoEl = document.createElement('video');
+    videoEl.preload = 'metadata';
+    const tempUrl = URL.createObjectURL(file);
+    videoEl.src = tempUrl;
+
+    const meta: any = await new Promise((resolve) => {
+      videoEl.onloadedmetadata = () => {
+        resolve({
+          duration: videoEl.duration || 0,
+          resolution: `${videoEl.videoWidth}x${videoEl.videoHeight}`,
+        });
+      };
+      videoEl.onerror = () => {
+        resolve({ duration: vid.duration || 180, resolution: 'HD' });
+      };
+    });
+    URL.revokeObjectURL(tempUrl);
 
     if (localVideoObjectUrlRef.current) {
       URL.revokeObjectURL(localVideoObjectUrlRef.current);
@@ -320,7 +456,16 @@ export const Room: React.FC = () => {
 
     setLocalVideoUrl(objUrl);
     setVerificationStatus('correct');
+    setSelectedFileName(file.name);
+    setSelectedFileMeta({
+      name: file.name,
+      size: file.size,
+      duration: meta.duration,
+      resolution: meta.resolution
+    });
+
     socketClientRef.current?.sendViewerReady(10.0);
+    if (e.target) e.target.value = '';
   };
 
   const handleKickUser = (target: string) => {
@@ -394,7 +539,7 @@ export const Room: React.FC = () => {
           )}
         </AnimatePresence>
 
-        {/* Video Metadata Card */}
+        {/* Video Metadata & File Selection Banner */}
         <div className="glass-love p-6 rounded-3xl border border-pink-500/20 shadow-xl space-y-4">
           <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4">
             <div>
@@ -402,14 +547,34 @@ export const Room: React.FC = () => {
                 <span className="text-[10px] font-extrabold px-2.5 py-0.5 rounded-full bg-pink-500/20 border border-pink-500/40 text-pink-300">
                   {vid.source === 'drive' ? 'Google Drive Stream' : vid.source === 'local' ? 'Local Movie' : 'HD Movie Stream'}
                 </span>
+                {verificationStatus === 'correct' && (
+                  <span className="text-[10px] font-extrabold px-2.5 py-0.5 rounded-full bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 flex items-center gap-1">
+                    <CheckCircle2 className="w-3.5 h-3.5" /> Movie Selected ❤️
+                  </span>
+                )}
                 {vid.checksum && (
                   <span className="text-[10px] font-semibold text-emerald-400 flex items-center gap-1">
                     <ShieldCheck className="w-3.5 h-3.5" /> Verified SHA-256
                   </span>
                 )}
               </div>
-              <h3 className="text-xl font-extrabold text-white font-['Outfit']">{vid.title}</h3>
+              <h3 className="text-xl font-extrabold text-white font-['Outfit']">{selectedFileName || vid.title}</h3>
               {vid.description && <p className="text-xs text-pink-200/70 mt-1 font-light">{vid.description}</p>}
+
+              {/* Selected Movie Details Pill */}
+              {selectedFileMeta && (
+                <div className="flex flex-wrap items-center gap-2 mt-3 text-[11px] text-pink-200 font-mono">
+                  <span className="px-2.5 py-1 rounded-xl bg-pink-950/40 border border-pink-500/20">
+                    Duration: {formatDuration(selectedFileMeta.duration)}
+                  </span>
+                  <span className="px-2.5 py-1 rounded-xl bg-pink-950/40 border border-pink-500/20">
+                    Size: {formatBytes(selectedFileMeta.size)}
+                  </span>
+                  <span className="px-2.5 py-1 rounded-xl bg-pink-950/40 border border-pink-500/20">
+                    Res: {selectedFileMeta.resolution || 'HD'}
+                  </span>
+                </div>
+              )}
             </div>
 
             {/* Action buttons */}
@@ -423,13 +588,22 @@ export const Room: React.FC = () => {
                 </button>
               )}
 
+              {/* Browse Local Folder / Select Local File Button */}
               <button
                 onClick={() => videoFileInputRef.current?.click()}
-                className="px-5 py-2.5 bg-gradient-to-r from-pink-600 to-purple-600 hover:from-pink-500 hover:to-purple-500 text-white text-xs font-bold rounded-2xl shadow-lg shadow-pink-600/30 transition-all flex items-center gap-2"
+                className="px-5 py-2.5 bg-gradient-to-r from-pink-600 to-purple-600 hover:from-pink-500 hover:to-purple-500 text-white text-xs font-bold rounded-2xl shadow-lg shadow-pink-600/30 transition-all flex items-center gap-2 font-['Outfit']"
               >
-                <FolderOpen className="w-4 h-4" /> Select Local File
+                <FolderOpen className="w-4 h-4" /> Browse Local Folder
               </button>
-              <input type="file" ref={videoFileInputRef} onChange={handleLocalFileSelect} className="hidden" />
+
+              {/* Native OS File Picker Input */}
+              <input
+                type="file"
+                ref={videoFileInputRef}
+                onChange={handleLocalFileSelect}
+                accept="video/*,.mp4,.mkv,.avi,.mov,.webm,.m4v"
+                className="hidden"
+              />
             </div>
           </div>
         </div>
@@ -728,28 +902,113 @@ export const Room: React.FC = () => {
             >
               <div className="px-6 py-5 border-b border-pink-500/15 flex items-center justify-between">
                 <div>
-                  <h3 className="text-lg font-extrabold text-white font-['Outfit']">Select Romantic Movie ❤️</h3>
-                  <p className="text-xs text-pink-200/70 mt-1">Choose a video for Harashwar & Dharunya's watch party</p>
+                  <h3 className="text-lg font-extrabold text-white font-['Outfit']">
+                    {videoModalView === 'options' ? 'Choose Video Source ❤️' : 'Dashboard Library ❤️'}
+                  </h3>
+                  <p className="text-xs text-pink-200/70 mt-1">
+                    {videoModalView === 'options' ? 'Select where you want to stream your media file from.' : 'Select a movie uploaded or imported from Google Drive.'}
+                  </p>
                 </div>
-                <button onClick={() => setShowVideoModal(false)} className="text-xs text-pink-300/60 hover:text-white">Close</button>
+
+                {videoModalView === 'library' && (
+                  <button 
+                    onClick={() => setVideoModalView('options')}
+                    className="text-xs px-3 py-1.5 rounded-xl border border-pink-500/30 text-pink-300 hover:text-white transition-all bg-pink-950/40"
+                  >
+                    ← Back to Options
+                  </button>
+                )}
+                <button onClick={() => setShowVideoModal(false)} className="text-xs text-pink-300/60 hover:text-white ml-2">Close</button>
               </div>
 
-              <div className="flex-1 overflow-y-auto p-6 space-y-3">
-                {videoLibrary.map((vid) => (
-                  <div
-                    key={vid.id}
-                    onClick={() => handleSelectVideo(vid.id)}
-                    className="p-4 glass-love border border-pink-500/20 hover:border-pink-500 rounded-2xl flex justify-between items-center cursor-pointer transition-all hover:scale-[1.01]"
-                  >
-                    <div>
-                      <h4 className="text-sm font-bold text-white font-['Outfit']">{vid.title}</h4>
-                      <p className="text-xs text-pink-200/60 mt-1">{vid.description || 'No description'}</p>
-                    </div>
-                    <button className="px-4 py-2 bg-gradient-to-r from-pink-600 to-purple-600 text-white font-bold text-xs rounded-xl shadow-md shadow-pink-600/20">
-                      Play Now ❤️
-                    </button>
+              <div className="flex-1 overflow-y-auto p-6">
+                {videoModalView === 'options' ? (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-5 py-4">
+                    
+                    {/* Option 1: Dashboard Library */}
+                    <motion.div
+                      whileHover={{ scale: 1.02, translateY: -4 }}
+                      onClick={() => setVideoModalView('library')}
+                      className="group cursor-pointer rounded-3xl p-6 flex flex-col justify-between transition-all glass-love border border-pink-500/20 hover:border-pink-500/50 shadow-xl"
+                    >
+                      <div className="space-y-4">
+                        <div className="w-12 h-12 rounded-2xl flex items-center justify-center bg-purple-600/20 border border-purple-500/30 text-purple-400 group-hover:scale-110 transition-transform">
+                          <Clapperboard className="w-6 h-6" />
+                        </div>
+                        <div>
+                          <h4 className="text-base font-bold text-white group-hover:text-pink-300 transition-colors font-['Outfit']">
+                            📚 Dashboard Library
+                          </h4>
+                          <p className="text-xs text-pink-200/70 mt-2 leading-relaxed font-light">
+                            Select a movie uploaded to LoveStream or imported from Google Drive.
+                          </p>
+                        </div>
+                      </div>
+                      <div className="mt-8">
+                        <button className="w-full py-3 px-4 rounded-2xl text-xs font-bold text-white transition-all bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 shadow-md shadow-purple-600/20 font-['Outfit']">
+                          Open Dashboard Library ❤️
+                        </button>
+                      </div>
+                    </motion.div>
+
+                    {/* Option 2: Browse Local Folder */}
+                    <motion.div
+                      whileHover={{ scale: 1.02, translateY: -4 }}
+                      onClick={() => hostLocalFileInputRef.current?.click()}
+                      className="group cursor-pointer rounded-3xl p-6 flex flex-col justify-between transition-all glass-love border border-pink-500/20 hover:border-pink-500/50 shadow-xl"
+                    >
+                      <div className="space-y-4">
+                        <div className="w-12 h-12 rounded-2xl flex items-center justify-center bg-pink-600/20 border border-pink-500/30 text-pink-400 group-hover:scale-110 transition-transform">
+                          <Monitor className="w-6 h-6" />
+                        </div>
+                        <div>
+                          <h4 className="text-base font-bold text-white group-hover:text-pink-300 transition-colors font-['Outfit']">
+                            💻 Browse Local Folder
+                          </h4>
+                          <p className="text-xs text-pink-200/70 mt-2 leading-relaxed font-light">
+                            Select a movie file stored on your computer. Opens native OS file picker immediately.
+                          </p>
+                        </div>
+                      </div>
+                      <div className="mt-8">
+                        <button className="w-full py-3 px-4 rounded-2xl text-xs font-bold text-white transition-all bg-gradient-to-r from-pink-600 to-purple-600 hover:from-pink-500 hover:to-purple-500 shadow-md shadow-pink-600/20 font-['Outfit']">
+                          {isProcessingHostFile ? <RefreshCw className="w-4 h-4 animate-spin mx-auto" /> : 'Browse Local Folder ❤️'}
+                        </button>
+                      </div>
+                    </motion.div>
+
+                    {/* Native File Input for Host Local File Selection */}
+                    <input
+                      type="file"
+                      ref={hostLocalFileInputRef}
+                      onChange={handleHostLocalFileSelect}
+                      accept="video/*,.mp4,.mkv,.avi,.mov,.webm,.m4v"
+                      className="hidden"
+                    />
                   </div>
-                ))}
+                ) : (
+                  <div className="space-y-3">
+                    {videoLibrary.length === 0 ? (
+                      <p className="text-xs text-pink-300/60 text-center py-8">Your movie library is empty. Please upload videos from the Dashboard.</p>
+                    ) : (
+                      videoLibrary.map((vid) => (
+                        <div
+                          key={vid.id}
+                          onClick={() => handleSelectVideo(vid.id)}
+                          className="p-4 glass-love border border-pink-500/20 hover:border-pink-500 rounded-2xl flex justify-between items-center cursor-pointer transition-all hover:scale-[1.01]"
+                        >
+                          <div>
+                            <h4 className="text-sm font-bold text-white font-['Outfit']">{vid.title}</h4>
+                            <p className="text-xs text-pink-200/60 mt-1">{vid.description || 'No description'}</p>
+                          </div>
+                          <button className="px-4 py-2 bg-gradient-to-r from-pink-600 to-purple-600 text-white font-bold text-xs rounded-xl shadow-md shadow-pink-600/20 font-['Outfit']">
+                            Play Now ❤️
+                          </button>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                )}
               </div>
             </motion.div>
           </div>

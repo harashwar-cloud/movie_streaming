@@ -632,7 +632,7 @@ export const Dashboard: React.FC = () => {
                       <input
                         type="file"
                         id="video-file-input"
-                        accept="video/mp4,video/webm"
+                        accept="video/*,.mp4,.mkv,.avi,.mov,.webm,.m4v"
                         onChange={(e) => setUploadFile(e.target.files ? e.target.files[0] : null)}
                         className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
                         disabled={uploading}
