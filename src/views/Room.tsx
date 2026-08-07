@@ -6,7 +6,7 @@ import L from 'leaflet';
 import {
   Users, Send, Image, Smile, MapPin, BarChart2, MessageSquare,
   LogOut, Copy, Check, Download, FolderOpen, Film, ShieldCheck, Heart,
-  Clapperboard, Monitor, RefreshCw, Play, CheckCircle2, Clock
+  Clapperboard, Monitor, RefreshCw, CheckCircle2
 } from 'lucide-react';
 
 import { api, getRole, getUsername } from '../services/api';
