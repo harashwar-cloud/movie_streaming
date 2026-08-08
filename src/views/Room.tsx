@@ -11,7 +11,7 @@ import {
 
 import { api, getRole, getUsername } from '../services/api';
 import { RoomSocketClient } from '../services/websocket';
-import { VideoPlayer } from '../components/VideoPlayer';
+import { VideoPlayer } from '../components/VideoPlayer2';
 import { LOVE_IMAGES, AVATARS } from '../assets/loveImages';
 
 // Fix Leaflet Default Icon issue in React bundles
@@ -242,9 +242,7 @@ export const Room: React.FC = () => {
   }, [chatMessages]);
 
   const handlePlaybackChange = (action: 'PLAY' | 'PAUSE' | 'SEEK' | 'BUFFERING' | 'ERROR', time: number) => {
-    if (isAdmin) {
-      socketClientRef.current?.sendPlaybackSync(action, time);
-    }
+    socketClientRef.current?.sendPlaybackSync(action, time);
   };
 
   const handleSendChat = (e: React.FormEvent) => {
@@ -478,7 +476,7 @@ export const Room: React.FC = () => {
 
   const vid = room?.currentVideo;
   const isDriveOrRemote = vid && vid.source !== 'local';
-  const shouldRenderVideoPlayer = isDriveOrRemote || verificationStatus === 'correct';
+  const shouldRenderVideoPlayer = isDriveOrRemote || verificationStatus === 'correct' || Boolean(localVideoUrl);
 
   const renderVideoArea = () => {
     if (!vid) {
@@ -493,16 +491,14 @@ export const Room: React.FC = () => {
               Our love story is waiting for its first movie ❤️
             </h3>
             <p className="text-xs text-pink-200/70 max-w-sm leading-relaxed">
-              {isAdmin ? 'Click "Select Movie" above to choose a film for Harashwar & Dharunya!' : 'Waiting for Harashwar to choose our romantic movie!'}
+              Click "Select Movie" below to choose a film for Harashwar & Dharunya!
             </p>
-            {isAdmin && (
-              <button
-                onClick={handleOpenVideoModal}
-                className="px-6 py-3 bg-gradient-to-r from-pink-600 to-purple-600 hover:from-pink-500 hover:to-purple-500 text-white font-bold text-xs rounded-full shadow-lg shadow-pink-600/30 transition-all hover:scale-105"
-              >
-                Select Movie Now ❤️
-              </button>
-            )}
+            <button
+              onClick={handleOpenVideoModal}
+              className="px-6 py-3 bg-gradient-to-r from-pink-600 to-purple-600 hover:from-pink-500 hover:to-purple-500 text-white font-bold text-xs rounded-full shadow-lg shadow-pink-600/30 transition-all hover:scale-105"
+            >
+              Select Movie Now ❤️
+            </button>
           </div>
         </div>
       );
@@ -528,9 +524,8 @@ export const Room: React.FC = () => {
               <div className="relative z-10">
                 <VideoPlayer
                   videoUrl={localVideoUrl || `${import.meta.env.VITE_API_URL || 'http://localhost:8080'}/api/videos/stream/${vid.id}`}
-                  isAdmin={isAdmin}
                   videoSource={vid?.source === 'local' ? 'local' : vid?.source === 'drive' ? 'drive' : 'remote'}
-                  isPlayDisabled={isAdmin ? (viewerReadyStatus ? !viewerReadyStatus.allReady : true) : true}
+                  isPlayDisabled={false}
                   onPlaybackChange={handlePlaybackChange}
                   syncState={syncState}
                 />
@@ -652,22 +647,20 @@ export const Room: React.FC = () => {
         </div>
 
         <div className="flex items-center gap-3">
-          {isAdmin && (
-            <button
-              onClick={handleOpenVideoModal}
-              className="px-4 py-2 bg-gradient-to-r from-pink-600 to-purple-600 hover:from-pink-500 hover:to-purple-500 text-white rounded-2xl font-bold text-xs flex items-center gap-2 shadow-lg shadow-pink-600/30 transition-all font-['Outfit']"
-            >
-              <Film className="w-4 h-4" />
-              Select Movie ❤️
-            </button>
-          )}
+          <button
+            onClick={handleOpenVideoModal}
+            className="px-4 py-2 bg-gradient-to-r from-pink-600 to-purple-600 hover:from-pink-500 hover:to-purple-500 text-white rounded-2xl font-bold text-xs flex items-center gap-2 shadow-lg shadow-pink-600/30 transition-all font-['Outfit']"
+          >
+            <Film className="w-4 h-4" />
+            Select Movie ❤️
+          </button>
 
           <button
             onClick={handleExitRoom}
             className="px-4 py-2 bg-pink-950/30 border border-pink-500/20 hover:bg-pink-900/40 text-pink-300 hover:text-white rounded-2xl text-xs font-bold transition-all flex items-center gap-2 font-['Outfit']"
           >
             <LogOut className="w-4 h-4" />
-            {isAdmin ? 'End Space' : 'Leave Space'}
+            Leave Space
           </button>
         </div>
       </header>

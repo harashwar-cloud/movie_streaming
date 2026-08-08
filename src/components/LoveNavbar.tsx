@@ -1,7 +1,7 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Heart, LogOut, Sparkles, Tv } from 'lucide-react';
-import { getUsername, getRole, clearAuthData } from '../services/api';
+import { getUsername, clearAuthData } from '../services/api';
 import { LOVE_IMAGES, AVATARS } from '../assets/loveImages';
 
 interface LoveNavbarProps {
@@ -11,8 +11,6 @@ interface LoveNavbarProps {
 export const LoveNavbar: React.FC<LoveNavbarProps> = ({ showBackToDashboard = false }) => {
   const navigate = useNavigate();
   const username = getUsername() || 'Harashwar';
-  const role = getRole();
-  const isAdmin = role === 'ROLE_ADMIN';
 
   const userAvatar = username.toLowerCase().includes('dharunya') ? AVATARS.Dharunya : AVATARS.Harashwar;
 
@@ -79,7 +77,7 @@ export const LoveNavbar: React.FC<LoveNavbarProps> = ({ showBackToDashboard = fa
               <span className="text-pink-400">❤️</span>
             </p>
             <span className="text-[10px] font-semibold text-pink-300/60 uppercase tracking-widest block">
-              {isAdmin ? 'Host / Love King' : 'Viewer / Love Queen'}
+              Always Together ❤️
             </span>
           </div>
         </div>
