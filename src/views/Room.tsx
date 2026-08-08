@@ -11,7 +11,7 @@ import {
 
 import { api, getRole, getUsername } from '../services/api';
 import { RoomSocketClient } from '../services/websocket';
-import { VideoPlayer } from '../components/VideoPlayer2';
+import { VideoPlayer } from '../components/VideoPlayer';
 import { LOVE_IMAGES, AVATARS } from '../assets/loveImages';
 
 // Fix Leaflet Default Icon issue in React bundles
